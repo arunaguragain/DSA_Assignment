@@ -7,7 +7,7 @@
  * is represented by 'dp[k][n]'.It uses the formula dp[k][n] = 1 + min(t = 1 to n) { max(dp[k-1][t-1], dp[k][n-t]) } 
  * to check the temperature level at 't'. If the material does not react at temperature 't' then the problem is reduced 
  * to 'dp[k][t-1]' and if it does then it is reduced to 'dp[k-1][t-1]'
- * 
+ * The time complexity is found to be  O(k * n^2)
  */ 
 
 public class CriticalTemp{   // public class Critical Temperature declaration
