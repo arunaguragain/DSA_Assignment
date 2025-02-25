@@ -1,53 +1,83 @@
-/* Question no: 2,a
- * This program is for calculating the minimum number of rewards that needed to be distrubuted among employees based on their performance. 
- * This is done using a greedy approach with two passes over the array. At first, each employee is given reward amd then in first pass(left to right), 
- * if an  employee's ratings is greater than the previous employee's rating is checked and if it is so one more reward is assigned to that employee.
- * In second pass (right to left), the same thing is done but ratings is compared with the next employee and it is ensured that the reward 
- * is higher than the next employee's reward. At last, the sum of all individual rewards is the total no. of rewards.
- * The time complexity and space complexity is found to be O(n).
+import java.util.Scanner;
+
+/**
+ * This program calculates the minimum number of rewards to be distributed among employees 
+ * based on their performance using a greedy approach.
+ * 
+ * The approach involves two passes over the array:
+ * Left to Right Pass: If an employee has a higher rating than the previous one, 
+ * they get more rewards than the previous employee.
+ * Right to Left Pass: Ensures that employees with higher ratings than the next 
+ * one also receive more rewards.
+ * 
+ * Time Complexity: O(n)
+ * Space Complexity: O(n)
  */
 public class MinimumReward {
-    public static int minimumRewards(int[] ratings){
+
+    public static int minimumRewards(int[] ratings) {
         int n = ratings.length;
+        int[] rewards = new int[n];
 
-        int[] rewards = new int[n];  //initializing the reward array where every employee is getting at least a reward
-        for(int i=0; i<n; i++){
-            rewards[i]=1;  // each employee getting a reward initially
+        // Step 1: Initialize each employee with at least 1 reward
+        for (int i = 0; i < n; i++) {
+            rewards[i] = 1;
         }
 
-        for(int i=1; i<n; i++){   // At first - left to right If an employee has a higher rating than the one before them,
-            if(ratings[i] > ratings[i-1]){  //they should get more rewards than the employee to their left.
-                rewards[i] = rewards[i-1] + 1;
+        // Step 2: Left to Right Pass
+        for (int i = 1; i < n; i++) {
+            if (ratings[i] > ratings[i - 1]) {
+                rewards[i] = rewards[i - 1] + 1;
             }
         }
 
-        for(int i=n-2; i>=0; i--){ //then right to left If an employee has a higher rating than the one after them, 
-            if(ratings[i]>ratings[i+1]){    //they should get more rewards than the employee to their right.
-                rewards[i] = Math.max(rewards[i], rewards[i+1]+1);
+        // Step 3: Right to Left Pass
+        for (int i = n - 2; i >= 0; i--) {
+            if (ratings[i] > ratings[i + 1]) {
+                rewards[i] = Math.max(rewards[i], rewards[i + 1] + 1);
             }
         }
 
-        int totalRewards =0;
-        for(int reward: rewards){  //calculating the total no of rewards by summing up the 'rewards' array
+        // Step 4: Calculate Total Rewards
+        int totalRewards = 0;
+        for (int reward : rewards) {
             totalRewards += reward;
         }
 
-        return totalRewards;  //returning the total no. of rewards 
+        return totalRewards;
     }
 
-    public static void main(String[] args) {  //main methpd
-        int[] ratings1 = {1,0,2}; //Test case 1
-        int[] ratings2 = {1,2,2}; //Test case 2
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
 
-        System.out.println("The minimum reward is" + minimumRewards(ratings1)); //expected output = 5 
-        System.out.println("The minimum reward is" + minimumRewards(ratings2)); //expected output = 4
+        // Taking input from the user
+        System.out.print("Enter the number of employees: ");
+        int n = scanner.nextInt();
+        int[] ratings = new int[n];
+
+        System.out.println("Enter the performance ratings of employees:");
+        for (int i = 0; i < n; i++) {
+            ratings[i] = scanner.nextInt();
+        }
+
+        // Calculating and displaying the minimum rewards
+        System.out.println("The minimum reward required is: " + minimumRewards(ratings));
+
+        scanner.close();
     }
-
 }
 
-
-/*
- * Testing result
-    The minimum reward is5
-    The minimum reward is4
+/* Testing Results
+    Example 1:
+    Enter the number of employees: 3
+    Enter the performance ratings of employees:
+    1 0 2 
+    The minimum reward required is: 5
+    
+    Example 2:
+    Enter the number of employees: 3
+    Enter the performance ratings of employees:
+    1 2 2
+    The minimum reward required is: 4
+ 
  */
