@@ -1,6 +1,6 @@
 import java.util.Scanner;
 
-/**
+/* Question no : 2b
  * This program calculates the minimum number of rewards to be distributed among employees 
  * based on their performance using a greedy approach.
  * 
@@ -75,9 +75,9 @@ public class MinimumReward {
     The minimum reward required is: 5
     
     Example 2:
-    Enter the number of employees: 3
+    Enter the number of employees: 5
     Enter the performance ratings of employees:
-    1 2 2
-    The minimum reward required is: 4
+    1 3 2 2 1
+    The minimum reward required is: 7
  
  */

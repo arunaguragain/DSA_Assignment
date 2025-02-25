@@ -1,90 +1,137 @@
-/* Question no: 3,a
- * To find the minimum total cost to connect all devices in a network Kruskal's Minimum Spanning Tree algorithm is used Each device is 
- * treated as a node and dummy node is used to represent the communication model cost. The selction of lowest cost edges is done
- * while avoiding the cycles.
- * The time complexity was found to be O(E log E) and space complexity was found to be O(n + E)
+import java.util.*;
+
+/* Question no : 3a
+ * This program calculates the minimum total cost to connect all devices in a network
+ * using Kruskal's Minimum Spanning Tree (MST) algorithm.
+ *
+ * Each device is treated as a node, and a dummy node represents the communication module cost.
+ * The algorithm selects the lowest-cost edges while avoiding cycles.
+ *
+ * Time Complexity: O(E log E)
+ * Space Complexity: O(n + E)
  */
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-
 public class MinimumCost {
-    static class FindUnion{
-        int [] parent, rank;
+    
+    static class FindUnion {
+        int[] parent, rank;
 
-        public FindUnion(int size){ // Constructor to initialize the parent and rank arrays
-            parent = new int [size];
-            rank = new int [size];
-            for(int i=0; i<size; i++){  // initializing the parent array where each node is its own parent initiall
+        // Constructor to initialize parent and rank arrays
+        public FindUnion(int size) {
+            parent = new int[size];
+            rank = new int[size];
+            for (int i = 0; i < size; i++) {
                 parent[i] = i;
             }
         }
 
-        public int find(int x){   // method to return the node root
-            if(parent[x] != x){
+        // Find function with path compression
+        public int find(int x) {
+            if (parent[x] != x) {
                 parent[x] = find(parent[x]);
             }
             return parent[x];
         }
 
-        public boolean union(int x, int y){   // method to combine two components into one
-            int rootx = find(x);
-            int rooty = find(y);
-            if(rootx == rooty){  // no unification needed if both nodes are already connected
+        // Union function to merge two sets
+        public boolean union(int x, int y) {
+            int rootX = find(x);
+            int rootY = find(y);
+            if (rootX == rootY) {
                 return false;
             }
-            if(rank[rootx] > rank[rooty]){ //union of two sets based on their rank
-                parent[rooty] = rootx;
-            }else if (rank[rootx] < rank[rooty]){
-                parent[rootx] = rooty;
-            }else{
-                parent[rooty] = rootx; // if ranks are equal then make one root the parent of the other
-                rank[rootx]++;  // increasing the rank of the new root
+            if (rank[rootX] > rank[rootY]) {
+                parent[rootY] = rootX;
+            } else if (rank[rootX] < rank[rootY]) {
+                parent[rootX] = rootY;
+            } else {
+                parent[rootY] = rootX;
+                rank[rootX]++;
             }
-            return true;  //Successfully united
+            return true;
         }
     }
 
-    public static int minimumTotalCost(int n, int[] modules, int[][] connections){ //method to calculate the minimum total cost
+    public static int minimumTotalCost(int n, int[] modules, int[][] connections) {
         List<int[]> edges = new ArrayList<>();
- 
-        for(int i=0; i<n; i++){      // adding connection module cost
-            edges.add(new int[]{0, i+1, modules[i]});
+
+        // Adding connection module cost
+        for (int i = 0; i < n; i++) {
+            edges.add(new int[]{0, i + 1, modules[i]});
         }
 
-        for(int[] c : connections){  //adding direct connection costd from the connection array
-            edges.add(new int[]{c[0], c[1], c[2]}); 
+        // Adding direct connection costs
+        for (int[] c : connections) {
+            edges.add(new int[]{c[0], c[1], c[2]});
         }
 
-        edges.sort(Comparator.comparingInt(a -> a[2]));  //Sorting all edges based on the cost
+        // Sorting edges by cost
+        edges.sort(Comparator.comparingInt(a -> a[2]));
 
-        FindUnion fu = new FindUnion(n+1);  // Kruskal's Algorithm to construct the MST
-        int totalCost = 0, edgesUsed= 0;
+        // Applying Kruskal's Algorithm
+        FindUnion fu = new FindUnion(n + 1);
+        int totalCost = 0, edgesUsed = 0;
 
-        for(int[] edge : edges){   //loop to iterate through the sorted edges and adding them to the MST if they don't form a cycle
-            if(fu.union(edge[0], edge[1])){  
-                totalCost += edge[2];   // adding the cost of total edge to the total cost
-                edgesUsed ++;          // increasing the count of used edges
-                if(edgesUsed == n){
-                    break;             //stopping if all devices are connected
+        for (int[] edge : edges) {
+            if (fu.union(edge[0], edge[1])) {
+                totalCost += edge[2];
+                edgesUsed++;
+                if (edgesUsed == n) {
+                    break;
                 }
             }
         }
 
-        return totalCost;  //returning the minimum total cost
+        return totalCost;
     }
 
-    public static void main(String[] args) {  //main method
-        int n =3;  //no. of devices
-        int[] modules = {1, 2, 2};   //installation cost
-        int[][] connections = {{1, 2, 1}, {2, 3, 1}};   // direct connection cost
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
 
-        int result = minimumTotalCost(n, modules, connections);  //calling the method to get result
-        System.out.println("The minimum total cost to connect all devices is: " + result); //Expected Output: 3
+        // Taking user input for number of devices
+        System.out.print("Enter the number of devices: ");
+        int n = scanner.nextInt();
+
+        int[] modules = new int[n];
+        System.out.println("Enter the installation cost for each device:");
+        for (int i = 0; i < n; i++) {
+            modules[i] = scanner.nextInt();
+        }
+
+        System.out.print("Enter the number of direct connections: ");
+        int m = scanner.nextInt();
+        int[][] connections = new int[m][3];
+
+        System.out.println("Enter the direct connections in the format (device1 device2 cost):");
+        for (int i = 0; i < m; i++) {
+            connections[i][0] = scanner.nextInt();
+            connections[i][1] = scanner.nextInt();
+            connections[i][2] = scanner.nextInt();
+        }
+
+        // Calculating and displaying the minimum total cost
+        int result = minimumTotalCost(n, modules, connections);
+        System.out.println("The minimum total cost to connect all devices is: " + result);
+
+        scanner.close();
     }
-    
 }
 
-/* Testing Result
+/* Testing Results
+    Example 1 
+    Enter the number of devices: 3
+    Enter the installation cost for each device:
+    1 2 2
+    Enter the number of direct connections: 2
+    Enter the direct connections in the format (device1 device2 cost):
+    1 2 1     2 3 1
     The minimum total cost to connect all devices is: 3
+
+    Example 2
+    Enter the number of devices: 4
+    Enter the installation cost for each device:
+    3 1 4 2 
+    Enter the number of direct connections: 3
+    Enter the direct connections in the format (device1 device2 cost):
+    1 2 2  2 3 3  3 4 1
+    The minimum total cost to connect all devices is: 6
  */

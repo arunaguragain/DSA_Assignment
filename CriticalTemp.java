@@ -1,5 +1,5 @@
 import java.util.Scanner;  
-/**
+/* Question no : 1a
  * This program uses Dynamic Programming to determine the minimum number of measurements
  * required to find the critical temperature of a material using 'k' samples and 'n' temperature levels.
  * The DP table dp[k][n] stores the minimum measurements required for 'k' samples and 'n' temperature levels.
@@ -54,7 +54,7 @@ public class CriticalTemp {
     Minimum number of measurements required: 3
 
     Example 2:
-    Enter the number of samples (k): 3
-    Enter the number of temperature levels (n): 14
+    Enter the number of samples (k): 2
+    Enter the number of temperature levels (n): 10
     Minimum number of measurements required: 4
  */

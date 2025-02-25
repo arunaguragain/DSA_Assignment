@@ -1,5 +1,5 @@
 import java.util.*;
-/**
+/* Question no : 1b
  * This program finds the k-th lowest combination by selecting an investment 
  * from each sorted array using a min-heap (priority queue).
  * It efficiently tracks the smallest products and extracts the smallest k times 
@@ -83,12 +83,12 @@ public class LowestCombination {
     The 2-th lowest combination is: 8
 
     Example 2:
-    Enter the size of the first sorted array: 4
+    Enter the size of the first sorted array: 3
     Enter elements of the first sorted array: 
-    -4 -2 0 3
-    Enter the size of the second sorted array: 2
+    1 3 7
+    Enter the size of the second sorted array: 3
     Enter elements of the second sorted array: 
-    2 4
-    Enter the value of k (for k-th smallest combination): 6
-    The 6-th lowest combination is: 0
+    2 6 8
+    Enter the value of k (for k-th smallest combination): 4
+    The 4-th lowest combination is: 8
  */
