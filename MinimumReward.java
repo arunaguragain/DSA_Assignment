@@ -1,6 +1,6 @@
 import java.util.Scanner;
 
-/* Question no : 2b
+/* Question no : 2a
  * This program calculates the minimum number of rewards to be distributed among employees 
  * based on their performance using a greedy approach.
  * 
