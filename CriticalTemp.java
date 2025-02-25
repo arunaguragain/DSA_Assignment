@@ -1,4 +1,4 @@
-import java.util.Scanner;  // Importing Scanner class for user input
+import java.util.Scanner;  
 /**
  * This program uses Dynamic Programming to determine the minimum number of measurements
  * required to find the critical temperature of a material using 'k' samples and 'n' temperature levels.
@@ -48,9 +48,12 @@ public class CriticalTemp {
 }
 
 /* Testing Results
+    Example 1:
     Enter the number of samples (k): 2
     Enter the number of temperature levels (n): 6
     Minimum number of measurements required: 3
+
+    Example 2:
     Enter the number of samples (k): 3
     Enter the number of temperature levels (n): 14
     Minimum number of measurements required: 4

@@ -1,60 +1,94 @@
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.PriorityQueue;
-import java.util.Set;
-
-/* Question no: 1,b
- * To find the k-th lowest combination by selecting a investment from each sorted array, at first, a min heap/priority queue is 
- * used to track the smallest products effectively then approach is started with the samllest possible product and then 
- * the smallest k times is extracted to get the k-th smallest product. A set of visited pairs is maintained to avoid the redundancy.
- * the time complexity is found to be O(k log k)
+import java.util.*;
+/**
+ * This program finds the k-th lowest combination by selecting an investment 
+ * from each sorted array using a min-heap (priority queue).
+ * It efficiently tracks the smallest products and extracts the smallest k times 
+ * to find the k-th smallest product.
+ * A set of visited pairs is maintained to avoid redundancy.
+ * The time complexity is O(k log k).
  */
-public class LowestCombination {    //public class LowestCombination declaration
-    public static int lowestCombination(int[]ret1, int[]ret2, int k){ 
-        PriorityQueue<int[]> minHeap = new PriorityQueue<>(Comparator.comparing(a -> a[0])); //Min-heap to store the value
+public class LowestCombination {
 
-        Set<String> visited = new HashSet<>();  // tracking the visited index pairs(i, j) using  set
+    public static int lowestCombination(int[] ret1, int[] ret2, int k) {
+        PriorityQueue<int[]> minHeap = new PriorityQueue<>(Comparator.comparingInt(a -> a[0])); // Min-heap to store values
+        Set<String> visited = new HashSet<>();  // Tracking visited index pairs (i, j)
 
-        minHeap.offer(new int[]{ret1[0]*ret2[0],0,0}); // inserting the smallest value
+        minHeap.offer(new int[]{ret1[0] * ret2[0], 0, 0}); // Insert the smallest value
         visited.add("0,0");
 
-        int value = 0; // storing the k-th smallest value
+        int value = 0; // Store the k-th smallest value
 
-        for(int count=0; count<k; count++){ // loop to extract the k times from the min heap
-            int[] smallest = minHeap.poll();  //getting the smallest value
+        for (int count = 0; count < k; count++) { // Extract k times from the min heap
+            int[] smallest = minHeap.poll();  // Get the smallest value
             value = smallest[0];
-            int i = smallest[1] , j = smallest[2];
+            int i = smallest[1], j = smallest[2];
 
-            if(i+1 < ret1.length && !visited.contains((i+1) + ",")){  // if possible, adding the next element from ret1
-                minHeap.offer(new int[]{ret1[i+1] * ret2[j], i+1, j});
-                visited.add((i+1) + "," + j);
+            if (i + 1 < ret1.length && !visited.contains((i + 1) + "," + j)) { // Adding the next element from ret1
+                minHeap.offer(new int[]{ret1[i + 1] * ret2[j], i + 1, j});
+                visited.add((i + 1) + "," + j);
             }
 
-            if(j+1 < ret2.length && !visited.contains((i + "," + (j+1)))){  // if possible, adding the nect element from ret2
-                minHeap.offer(new int[]{ret1[i] * ret2[j+1], i , j+1});
-                visited.add(i + "," + (j+1));
+            if (j + 1 < ret2.length && !visited.contains(i + "," + (j + 1))) { // Adding the next element from ret2
+                minHeap.offer(new int[]{ret1[i] * ret2[j + 1], i, j + 1});
+                visited.add(i + "," + (j + 1));
             }
         }
-        return value;  // returning the answer
+        return value;  // Return the k-th smallest product
     }
 
-    public static void main(String[] args) {  // calling main method
-        int[] return1a = {2,5};  // Test case1
-        int[] return2a = {3,4};
-        int k1 = 2;
-        System.out.println("The output is" + lowestCombination(return1a, return2a, k1)); //Expected Output: 8
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in); // Create Scanner object for user input
 
-        int[] return1b = {-4, -2, 0, 3};  // Test case2
-        int[] return2b = {2, 4};
-        int k2 = 6;
-        System.out.println("The output is" + lowestCombination(return1b, return2b, k2));  //Expected Output: 0
+        // Reading first array
+        System.out.print("Enter the size of the first sorted array: ");
+        int size1 = scanner.nextInt();
+        int[] ret1 = new int[size1];
 
+        System.out.println("Enter elements of the first sorted array: ");
+        for (int i = 0; i < size1; i++) {
+            ret1[i] = scanner.nextInt();
+        }
+
+        // Reading second array
+        System.out.print("Enter the size of the second sorted array: ");
+        int size2 = scanner.nextInt();
+        int[] ret2 = new int[size2];
+
+        System.out.println("Enter elements of the second sorted array: ");
+        for (int i = 0; i < size2; i++) {
+            ret2[i] = scanner.nextInt();
+        }
+
+        // Reading value of k
+        System.out.print("Enter the value of k (for k-th smallest combination): ");
+        int k = scanner.nextInt();
+
+        // Compute the result and print output
+        int result = lowestCombination(ret1, ret2, k);
+        System.out.println("The " + k + "-th lowest combination is: " + result);
+
+        scanner.close(); // Close the scanner
     }
-
 }
 
-/*
- * Testing result
-    The output is8
-    The output is0
+/* Testing Results
+    Example 1:
+    Enter the size of the first sorted array: 2
+    Enter elements of the first sorted array: 
+    2 5
+    Enter the size of the second sorted array: 2
+    Enter elements of the second sorted array: 
+    3 4
+    Enter the value of k (for k-th smallest combination): 2
+    The 2-th lowest combination is: 8
+
+    Example 2:
+    Enter the size of the first sorted array: 4
+    Enter elements of the first sorted array: 
+    -4 -2 0 3
+    Enter the size of the second sorted array: 2
+    Enter elements of the second sorted array: 
+    2 4
+    Enter the value of k (for k-th smallest combination): 6
+    The 6-th lowest combination is: 0
  */
