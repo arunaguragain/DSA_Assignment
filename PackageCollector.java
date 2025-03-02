@@ -145,9 +145,9 @@ public class PackageCollector {
     Enter number of roads: 5
     Enter roads (pairs of connected locations): 
     0 1
+    1 2
     2 3
     3 4
     4 5
-    5 1
-    Minimum number of roads to traverse: 2
+    Minimum number of roads to traverse: 0
  */

@@ -1,10 +1,3 @@
-/* Question no: 5
- * This program implements a Network Optimizer that helps in designing an efficient network topology using Minimum Spanning Tree (MST) 
- * and Shortest Path (Dijkstra). The user can visualize the network as nodes (servers/clients) and edges (connections with costs and bandwidths).
- * It computes the MST to minimize the total cost and finds the shortest path between nodes considering both cost and bandwidth. 
- * The GUI enables the user to interactively design a network topology and calculate optimal paths.
-*/
-
 import java.awt.*;
 import java.util.*;
 import javax.swing.*;
@@ -64,7 +57,7 @@ public class NetworkOptimizer {
             ArrayList<Connection> mst = new ArrayList<>();
             boolean[] visited = new boolean[nodes.size()]; // Track visited nodes
             visited[0] = true; // Start from the first node
-            
+
             // Loop until all nodes are included in the MST
             while (mst.size() < nodes.size() - 1) {
                 int minCost = Integer.MAX_VALUE;
@@ -72,13 +65,11 @@ public class NetworkOptimizer {
 
                 // Find the minimum weight edge connecting a visited node to an unvisited node
                 for (Connection conn : connections) {
-                    if (visited[nodes.indexOf(conn.node1)] && !visited[nodes.indexOf(conn.node2)]) {
-                        if (conn.cost < minCost) {
-                            minCost = conn.cost;
-                            minConnection = conn;
-                        }
-                    }
-                    if (visited[nodes.indexOf(conn.node2)] && !visited[nodes.indexOf(conn.node1)]) {
+                    boolean node1Visited = visited[nodes.indexOf(conn.node1)];
+                    boolean node2Visited = visited[nodes.indexOf(conn.node2)];
+
+                    // Ensure one node is visited and the other is unvisited
+                    if (node1Visited != node2Visited) {
                         if (conn.cost < minCost) {
                             minCost = conn.cost;
                             minConnection = conn;
@@ -88,11 +79,18 @@ public class NetworkOptimizer {
 
                 if (minConnection != null) {
                     mst.add(minConnection);
-                    // Mark the newly added node as visited
-                    visited[nodes.indexOf(minConnection.node1)] = true;
-                    visited[nodes.indexOf(minConnection.node2)] = true;
+                    // Mark the unvisited node as visited
+                    if (!visited[nodes.indexOf(minConnection.node1)]) {
+                        visited[nodes.indexOf(minConnection.node1)] = true;
+                    } else {
+                        visited[nodes.indexOf(minConnection.node2)] = true;
+                    }
+                } else {
+                    // No valid connection found (graph is disconnected)
+                    break;
                 }
             }
+
             return mst;
         }
 
@@ -103,7 +101,7 @@ public class NetworkOptimizer {
             Arrays.fill(dist, Double.MAX_VALUE); // Initialize distances as infinity
             dist[nodes.indexOf(start)] = 0; // Start node's distance is 0
             prev[nodes.indexOf(start)] = null; // Start node has no previous node
-            
+
             boolean[] visited = new boolean[nodes.size()]; // Array to track visited nodes
 
             // Main loop for Dijkstra's algorithm
@@ -128,7 +126,9 @@ public class NetworkOptimizer {
                     if (conn.node1 == currentNode || conn.node2 == currentNode) {
                         Node neighbor = (conn.node1 == currentNode) ? conn.node2 : conn.node1;
                         int v = nodes.indexOf(neighbor);
-                        double alt = dist[u] + (costWeight * conn.cost) - (bandwidthWeight * conn.bandwidth);
+
+                        // Adjusted distance formula
+                        double alt = dist[u] + (costWeight * conn.cost) + (bandwidthWeight / conn.bandwidth);
 
                         // Update distance if a shorter path is found
                         if (alt < dist[v]) {
@@ -144,6 +144,13 @@ public class NetworkOptimizer {
             for (Node at = end; at != null; at = prev[nodes.indexOf(at)]) {
                 path.add(at); // Add each node in the path
             }
+
+            // Check if the end node was reached
+            if (path.size() == 1 && path.get(0) != start) {
+                // No path exists
+                return new ArrayList<>();
+            }
+
             Collections.reverse(path); // Reverse to get path from start to end
             return path;
         }
@@ -158,6 +165,7 @@ public class NetworkOptimizer {
         JTextField nodeNameField; // Input field to add a new node
         JTextField costField, bandwidthField; // Input fields to specify the cost and bandwidth of a connection
         JComboBox<String> nodeSelectorStart, nodeSelectorEnd; // Dropdowns to select nodes for the start and end of a connection
+        JTextArea descriptionArea; // Text area to display detailed descriptions
 
         // Constructor to initialize the GUI
         NetworkOptimizerGUIApp() {
@@ -171,7 +179,7 @@ public class NetworkOptimizer {
                     for (Connection conn : graph.connections) {
                         g.drawLine(conn.node1.x, conn.node1.y, conn.node2.x, conn.node2.y);
                         g.drawString("Cost: " + conn.cost + ", Bandwidth: " + conn.bandwidth,
-                                     (conn.node1.x + conn.node2.x) / 2, (conn.node1.y + conn.node2.y) / 2);
+                                (conn.node1.x + conn.node2.x) / 2, (conn.node1.y + conn.node2.y) / 2);
                     }
                     // Draw all nodes in the network
                     for (Node node : graph.nodes) {
@@ -228,6 +236,13 @@ public class NetworkOptimizer {
             calculationPanel.add(shortestPathButton);
             frame.add(calculationPanel, BorderLayout.WEST); // Add the calculation panel to the left of the frame
 
+            // Add a description area in the bottom-left corner
+            descriptionArea = new JTextArea(10, 20);
+            descriptionArea.setEditable(false);
+            descriptionArea.setText("Description:\n");
+            JScrollPane scrollPane = new JScrollPane(descriptionArea);
+            frame.add(scrollPane, BorderLayout.SOUTH); // Add the description area to the bottom of the frame
+
             frame.pack(); // Pack the components to fit within the frame
             frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE); // Exit when the window is closed
             frame.setVisible(true); // Make the window visible
@@ -241,6 +256,9 @@ public class NetworkOptimizer {
             graph.addNode(nodeName, x, y); // Add the new node to the graph
             nodeSelectorStart.addItem(nodeName); // Add the node to the start node dropdown
             nodeSelectorEnd.addItem(nodeName); // Add the node to the end node dropdown
+
+            // Update the description area
+            descriptionArea.append("Node Added: " + nodeName + " at (" + x + ", " + y + ")\n");
             panel.repaint(); // Repaint the panel to show the new node
         }
 
@@ -262,19 +280,28 @@ public class NetworkOptimizer {
 
             // Add the new connection to the graph
             graph.addConnection(startNode, endNode, cost, bandwidth);
+            descriptionArea.append("Connection Added: " + startNodeName + " <-> " + endNodeName +
+                    " with Cost: " + cost + ", Bandwidth: " + bandwidth + "\n");
             panel.repaint(); // Repaint the panel to show the new connection
         }
 
         // Method to calculate and display the Minimum Spanning Tree (MST)
         void calculateMST() {
             ArrayList<Connection> mst = graph.getMinimumSpanningTree(); // Get the MST
-            StringBuilder sb = new StringBuilder();
-            for (Connection conn : mst) {
-                sb.append("Connection between ").append(conn.node1.name).append(" and ")
-                  .append(conn.node2.name).append(" with cost: ").append(conn.cost)
-                  .append(" and bandwidth: ").append(conn.bandwidth).append("\n");
+
+            if (mst.size() < graph.nodes.size() - 1) {
+                infoArea.setText("The graph is disconnected. Cannot calculate MST.");
+                descriptionArea.append("The graph is disconnected. Cannot calculate MST.\n");
+            } else {
+                StringBuilder sb = new StringBuilder();
+                for (Connection conn : mst) {
+                    sb.append("Connection between ").append(conn.node1.name).append(" and ")
+                            .append(conn.node2.name).append(" with cost: ").append(conn.cost)
+                            .append(" and bandwidth: ").append(conn.bandwidth).append("\n");
+                }
+                infoArea.setText(sb.toString()); // Display the MST in the info area
+                descriptionArea.append("MST Calculated:\n" + sb.toString() + "\n"); // Update the description area
             }
-            infoArea.setText(sb.toString()); // Display the MST in the info area
         }
 
         // Method to calculate and display the shortest path
@@ -294,11 +321,18 @@ public class NetworkOptimizer {
             double bandwidthWeight = 1.0; // Example default weight for bandwidth
 
             ArrayList<Node> path = graph.getShortestPath(startNode, endNode, costWeight, bandwidthWeight); // Get the shortest path
-            StringBuilder sb = new StringBuilder("Shortest Path:\n");
-            for (Node node : path) {
-                sb.append(node.name).append("\n"); // Display each node in the shortest path
+
+            if (path.isEmpty()) {
+                infoArea.setText("No path exists between " + startNodeName + " and " + endNodeName + ".");
+                descriptionArea.append("No path exists between " + startNodeName + " and " + endNodeName + ".\n");
+            } else {
+                StringBuilder sb = new StringBuilder("Shortest Path:\n");
+                for (Node node : path) {
+                    sb.append(node.name).append("\n"); // Display each node in the shortest path
+                }
+                infoArea.setText(sb.toString()); // Display the shortest path in the info area
+                descriptionArea.append("Shortest Path Calculated:\n" + sb.toString() + "\n"); // Update the description area
             }
-            infoArea.setText(sb.toString()); // Display the shortest path in the info area
         }
 
         // Main method to run the GUI application
@@ -308,8 +342,38 @@ public class NetworkOptimizer {
     }
 }
 
-/* Testing Results
-    four nodes3,4,5,6 was added and then connection was also added between them
-    the cost and bandwidth was assigned with the connection
-    when calculating mst and shortest path the aswer was correct
+/* Testing result 
+    Node Added: a at (650, 291)
+    Node Added: b at (190, 312)
+    Node Added: c at (242, 171)
+    Node Added: d at (137, 302)
+    Node Added: e at (121, 138)
+    Connection Added: a <-> e with Cost: 1, Bandwidth: 2
+    Connection Added: c <-> e with Cost: 2, Bandwidth: 2
+    Connection Added: a <-> b with Cost: 9, Bandwidth: 9
+    Connection Added: e <-> b with Cost: 2, Bandwidth: 2
+    Shortest Path Calculated:
+    Shortest Path:
+    e
+    b
+
+    Connection Added: e <-> a with Cost: 2, Bandwidth: 2
+    Shortest Path Calculated:
+    Shortest Path:
+    e
+    a
+
+    Shortest Path Calculated:
+    Shortest Path:
+    a
+    e
+    b
+
+    Connection Added: d <-> b with Cost: 2, Bandwidth: 2
+    MST Calculated:
+    Connection between a and e with cost: 1 and bandwidth: 2
+    Connection between c and e with cost: 2 and bandwidth: 2
+    Connection between e and b with cost: 2 and bandwidth: 2
+    Connection between d and b with cost: 2 and bandwidth: 2
+
  */
