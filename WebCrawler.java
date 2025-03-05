@@ -1,132 +1,81 @@
 import java.awt.*;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.Socket;
+import java.util.concurrent.*;
 import javax.swing.*;
 
-// Custom linked list queue for managing URLs
+// Thread-safe queue for URLs to be crawled
 class URLQueue {
-    private static class Node {
-        String url;
-        Node next;
-        Node(String url) { this.url = url; this.next = null; }
-    }
-    private Node front, rear;
+    private final ConcurrentLinkedQueue<String> queue = new ConcurrentLinkedQueue<>();
 
-    // Constructor for URLQueue
-    public URLQueue() { front = rear = null; }
-
-    // Method to enqueue URLs to the queue
-    public synchronized void enqueue(String url) {
-        Node newNode = new Node(url);
-        if (rear == null) front = rear = newNode;
-        else { rear.next = newNode; rear = newNode; }
-        notifyAll(); // Notify waiting threads that a new URL is available
+    // Add a URL to the queue
+    public void enqueue(String url) {
+        queue.offer(url);
     }
 
-    // Method to dequeue URLs from the queue
-    public synchronized String dequeue() {
-        while (front == null) {
-            try {
-                wait(); // Wait until a URL is available
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return null;
-            }
-        }
-        String url = front.url;
-        front = front.next;
-        if (front == null) rear = null;
-        return url;
+    // Remove a URL from the queue
+    public String dequeue() {
+        return queue.poll();
     }
 
     // Check if the queue is empty
-    public synchronized boolean isEmpty() { return front == null; }
+    public boolean isEmpty() {
+        return queue.isEmpty();
+    }
 }
 
-// Custom hash table for visited URLs
+// Thread-safe hash table to track visited URLs
 class URLHashTable {
-    private static class Entry {
-        String url;
-        Entry next;
-        Entry(String url) { this.url = url; this.next = null; }
-    }
-    private final Entry[] table;
-    private final int size = 1000;
+    private final ConcurrentHashMap<String, Boolean> visited = new ConcurrentHashMap<>();
 
-    // Constructor for URLHashTable
-    public URLHashTable() { table = new Entry[size]; }
-
-    // Simple hash function to map URLs to hash table slots
-    private int hash(String url) {
-        int hash = 0;
-        for (char c : url.toCharArray()) hash = (hash * 31 + c) % size;
-        return hash;
-    }
-
-    // Add a URL to the hash table, return true if added, false if already exists
-    public synchronized boolean add(String url) {
-        int index = hash(url);
-        Entry curr = table[index];
-        while (curr != null) {
-            if (curr.url.equals(url)) return false;
-            curr = curr.next;
-        }
-        Entry newEntry = new Entry(url);
-        newEntry.next = table[index];
-        table[index] = newEntry;
-        return true;
+    // Add URL to visited list, return true if it's new
+    public boolean add(String url) {
+        return visited.putIfAbsent(url, true) == null;
     }
 }
 
-// Worker thread for crawling web pages
+// Worker task to fetch and process web pages
 class CrawlerTask implements Runnable {
-    private final URLQueue queue;
-    private final URLHashTable visited;
-    private final JTextArea resultArea;
-    private volatile boolean running = true;
+    private final URLQueue queue;       // URL queue
+    private final URLHashTable visited; // Visited URLs table
+    private final JTextArea resultArea; // UI output
+    private final File file;            // File for storing results
 
-    // Constructor for CrawlerTask
-    public CrawlerTask(URLQueue queue, URLHashTable visited, JTextArea resultArea) {
+    public CrawlerTask(URLQueue queue, URLHashTable visited, JTextArea resultArea, File file) {
         this.queue = queue;
         this.visited = visited;
         this.resultArea = resultArea;
+        this.file = file;
     }
 
     @Override
     public void run() {
-        while (running) {
-            String url = queue.dequeue();
-            if (url != null) {
-                fetchPage(url);
-            }
+        while (true) {
+            String url = queue.dequeue(); // Get next URL
+            if (url == null) break;       // Stop if queue is empty
+            fetchPage(url);
         }
     }
 
-    // Method to fetch a page and extract links
+    // Fetches a web page
     private void fetchPage(String url) {
-        String finalUrl = url; // Create an effectively final variable
-        try {
-            // Check if the URL is HTTPS, if yes, skip processing
-            if (finalUrl.startsWith("https://")) {
-                SwingUtilities.invokeLater(() -> resultArea.append("Skipping HTTPS link: " + finalUrl + "\n"));
-                return; // Skip this URL as it uses HTTPS
-            }
+        if (url.startsWith("https://")) {
+            SwingUtilities.invokeLater(() -> resultArea.append("Skipping HTTPS link: " + url + "\n"));
+            return;
+        }
 
-            // Extract host, port, and path from URL
+        try {
+            // Extract host, port, and path
             String host;
             int port = 80; // Default HTTP port
             String path = "/";
-            String processedUrl = finalUrl.replace("http://", ""); // Remove "http://"
-            int colonIndex = processedUrl.indexOf(':');
+            String processedUrl = url.replace("http://", "");
             int slashIndex = processedUrl.indexOf('/');
+            int colonIndex = processedUrl.indexOf(':');
+
             if (colonIndex != -1) {
                 host = processedUrl.substring(0, colonIndex);
-                String portString = processedUrl.substring(colonIndex + 1, slashIndex != -1 ? slashIndex : processedUrl.length());
-                if (!portString.isEmpty()) { // Check if port is not empty
-                    port = Integer.parseInt(portString);
-                }
+                port = Integer.parseInt(processedUrl.substring(colonIndex + 1, slashIndex != -1 ? slashIndex : processedUrl.length()));
             } else if (slashIndex != -1) {
                 host = processedUrl.substring(0, slashIndex);
                 path = processedUrl.substring(slashIndex);
@@ -134,71 +83,40 @@ class CrawlerTask implements Runnable {
                 host = processedUrl;
             }
 
-            // Debug: Print extracted host, port, and path
-            System.out.println("Host: " + host);
-            System.out.println("Port: " + port);
-            System.out.println("Path: " + path);
-
-            // Establish socket connection for HTTP protocol
+            // Connect to server
             try (Socket socket = new Socket(host, port);
                  OutputStream os = socket.getOutputStream();
                  InputStream is = socket.getInputStream()) {
-                // Send GET request with headers
+
+                // Send HTTP GET request
                 String request = "GET " + path + " HTTP/1.1\r\n" +
                                  "Host: " + host + "\r\n" +
-                                 "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)\r\n" +
+                                 "User-Agent: Mozilla/5.0\r\n" +
                                  "Accept: text/html\r\n" +
                                  "Connection: close\r\n\r\n";
                 os.write(request.getBytes());
                 os.flush();
 
-                // Read response from the server
+                // Read response
                 byte[] buffer = new byte[4096];
                 int read = is.read(buffer);
                 if (read > 0) {
-                    String response = new String(buffer, 0, read);
-                    SwingUtilities.invokeLater(() -> resultArea.append("Crawled: " + finalUrl + "\n"));
-                    extractLinks(response, host); // Extract links from the page content
+                    SwingUtilities.invokeLater(() -> resultArea.append("Crawled: " + url + "\n"));
+                    saveToFile(url);
                 }
             }
         } catch (IOException e) {
-            SwingUtilities.invokeLater(() -> resultArea.append("Failed: " + finalUrl + " - " + e.getMessage() + "\n"));
-            e.printStackTrace(); // Print stack trace for debugging
+            SwingUtilities.invokeLater(() -> resultArea.append("Failed: " + url + " - " + e.getMessage() + "\n"));
         }
     }
 
-    // Extract links from the page content
-    private void extractLinks(String content, String host) {
-        int index = 0;
-        while ((index = content.indexOf("href=\"", index)) != -1) {
-            index += 6;
-            int endIndex = content.indexOf("\"", index);
-            if (endIndex == -1) break;
-            String link = content.substring(index, endIndex);
-
-            // If the link does not start with "http", make it absolute
-            String absoluteLink = link; // Create a new variable for the absolute link
-            if (!absoluteLink.startsWith("http")) {
-                absoluteLink = "http://" + host + absoluteLink; // Modify the new variable
-            }
-
-            // Filter out invalid links like mailto and javascript links
-            if (absoluteLink.startsWith("javascript:") || absoluteLink.startsWith("mailto:")) {
-                continue; // Skip these types of links
-            }
-
-            // If the link has not been visited, add it to the queue
-            String finalLink = absoluteLink; // Create an effectively final variable
-            if (visited.add(finalLink)) {
-                queue.enqueue(finalLink);
-                SwingUtilities.invokeLater(() -> resultArea.append("Extracted link: " + finalLink + "\n"));
-            }
+    // Saves crawled URL to file (thread-safe)
+    private synchronized void saveToFile(String url) {
+        try (FileWriter writer = new FileWriter(file, true)) {
+            writer.write(url + "\n");
+        } catch (IOException e) {
+            e.printStackTrace();
         }
-    }
-
-    // Stop the crawler task
-    public void stop() {
-        running = false;
     }
 }
 
@@ -209,67 +127,86 @@ public class WebCrawler extends JFrame {
     private final JTextArea resultArea;
     private final URLQueue queue;
     private final URLHashTable visited;
-    private Thread[] threads;
+    private ExecutorService executor;
+    private final File file;
 
-    // Constructor for WebCrawler
+    // Constructor
     public WebCrawler() {
         setTitle("Multithreaded Web Crawler");
         setSize(600, 400);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
 
-        // Panel for URL input and start button
-        JPanel panel = new JPanel();
-        panel.setLayout(new FlowLayout());
+        // UI Panel
+        JPanel panel = new JPanel(new FlowLayout());
         urlField = new JTextField(40);
         startButton = new JButton("Start Crawling");
         panel.add(urlField);
         panel.add(startButton);
         add(panel, BorderLayout.NORTH);
 
-        // Text area for displaying crawl results
+        // Results display
         resultArea = new JTextArea();
         resultArea.setEditable(false);
         add(new JScrollPane(resultArea), BorderLayout.CENTER);
 
-        // Initialize the queue and visited hash table
+        // Initialize data structures
         queue = new URLQueue();
         visited = new URLHashTable();
+        file = new File("crawled_data.txt");
 
         // Start button action listener
         startButton.addActionListener(_ -> startCrawling());
     }
 
-    // Method to start crawling from the provided URL
+    // Start the crawling process
     private void startCrawling() {
         String input = urlField.getText().trim();
-        if (input.isEmpty()) {
-            return; // Do nothing if the input is empty
-        }
+        if (input.isEmpty()) return;
 
-        // Split the input by commas to get individual URLs
+        // Process multiple URLs
         String[] urls = input.split(",");
         for (String url : urls) {
-            url = url.trim(); // Remove leading/trailing spaces
+            url = url.trim();
             if (!url.isEmpty() && visited.add(url)) {
-                queue.enqueue(url); // Add the URL to the queue
+                queue.enqueue(url);
                 resultArea.append("Starting crawl from: " + url + "\n");
             }
         }
 
-        // Create and start worker threads for crawling
-        int numThreads = 3; // Number of worker threads
-        threads = new Thread[numThreads];
+        // Create thread pool
+        int numThreads = 3;
+        executor = Executors.newFixedThreadPool(numThreads);
+
+        // Submit tasks
         for (int i = 0; i < numThreads; i++) {
-            threads[i] = new Thread(new CrawlerTask(queue, visited, resultArea));
-            threads[i].start();
+            executor.submit(new CrawlerTask(queue, visited, resultArea, file));
         }
+
+        // Shutdown executor when done
+        executor.shutdown();
+        new Thread(() -> {
+            try {
+                executor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+                SwingUtilities.invokeLater(() -> resultArea.append("Crawling completed.\n"));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }).start();
     }
 
-    // Main method to launch the GUI
+    // Main method to launch GUI
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> new WebCrawler().setVisible(true)); // Launch the app on the event dispatch thread
+        SwingUtilities.invokeLater(() -> new WebCrawler().setVisible(true));
     }
 }
 
-/* Testing */
+/*Testing result
+    input: http://example.com, http://example.org
+    output: Starting crawl from: http://example.com
+    Starting crawl from: http://example.org
+    Crawled: http://example.org
+    Crawled: http://example.com
+    Crawling completed.
+ */
+
