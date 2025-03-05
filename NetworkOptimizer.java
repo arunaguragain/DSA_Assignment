@@ -158,94 +158,114 @@ public class NetworkOptimizer {
 
     // GUI application class to interact with the user
     static class NetworkOptimizerGUIApp {
-        JFrame frame; // The main window of the application
-        NetworkGraph graph; // The network graph
-        JPanel panel; // Panel to display the network
-        JTextArea infoArea; // Text area to display information about the shortest path
-        JTextField nodeNameField; // Input field to add a new node
-        JTextField costField, bandwidthField; // Input fields to specify the cost and bandwidth of a connection
-        JComboBox<String> nodeSelectorStart, nodeSelectorEnd; // Dropdowns to select nodes for the start and end of a connection
-        JTextArea descriptionArea; // Text area to display detailed descriptions
+        JFrame frame;
+        NetworkGraph graph;
+        JPanel panel;
+        JTextArea infoArea;
+        JTextField nodeNameField;
+        JTextField costField, bandwidthField;
+        JComboBox<String> nodeSelectorStart, nodeSelectorEnd;
+        JTextArea descriptionArea;
 
-        // Constructor to initialize the GUI
+        // Constructor to initialize the GUI with compact "Add Node" UI
         NetworkOptimizerGUIApp() {
-            graph = new NetworkGraph(); // Create a new empty network graph
-            frame = new JFrame("Network Optimizer"); // Create the frame for the GUI
-            panel = new JPanel() { // Override the paintComponent method to draw the network graph
+            graph = new NetworkGraph();
+            frame = new JFrame("Network Optimizer");
+            frame.setLayout(new BorderLayout(10, 10));
+
+            // Panel to display the network graph
+            panel = new JPanel() {
                 @Override
                 protected void paintComponent(Graphics g) {
                     super.paintComponent(g);
-                    // Draw all connections between nodes
+                    // Draw all connections
                     for (Connection conn : graph.connections) {
+                        g.setColor(Color.BLACK);
                         g.drawLine(conn.node1.x, conn.node1.y, conn.node2.x, conn.node2.y);
-                        g.drawString("Cost: " + conn.cost + ", Bandwidth: " + conn.bandwidth,
+                        g.drawString("C: " + conn.cost + ", B: " + conn.bandwidth,
                                 (conn.node1.x + conn.node2.x) / 2, (conn.node1.y + conn.node2.y) / 2);
                     }
-                    // Draw all nodes in the network
+                    // Draw all nodes
                     for (Node node : graph.nodes) {
                         g.setColor(Color.BLUE);
-                        g.fillOval(node.x - 15, node.y - 15, 30, 30); // Draw node as a circle
+                        g.fillOval(node.x - 15, node.y - 15, 30, 30);
                         g.setColor(Color.WHITE);
-                        g.drawString(node.name, node.x - 10, node.y + 5); // Draw the name of the node inside the circle
+                        g.drawString(node.name, node.x - 10, node.y + 5);
                     }
                 }
             };
-            panel.setPreferredSize(new Dimension(800, 600)); // Set the panel's preferred size
-            frame.add(panel, BorderLayout.CENTER); // Add the panel to the center of the frame
+            panel.setPreferredSize(new Dimension(800, 600));
+            panel.setBackground(Color.WHITE);
+            frame.add(new JScrollPane(panel), BorderLayout.CENTER);
 
-            infoArea = new JTextArea(5, 40); // Create a text area to display information about the shortest path
-            infoArea.setEditable(false); // Make the text area read-only
-            frame.add(new JScrollPane(infoArea), BorderLayout.SOUTH); // Add the info area to the bottom of the frame
+            // Info area to display results
+            infoArea = new JTextArea(5, 40);
+            infoArea.setEditable(false);
+            infoArea.setBackground(new Color(240, 240, 240));
+            frame.add(new JScrollPane(infoArea), BorderLayout.SOUTH);
 
-            // Panel to input a new node
-            JPanel nodeInputPanel = new JPanel();
+            // Panel to input a new node (compact layout)
+            JPanel nodeInputPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10)); // Use FlowLayout for single row
+            nodeInputPanel.setBorder(BorderFactory.createTitledBorder("Add Node"));
             nodeInputPanel.add(new JLabel("Node Name:"));
-            nodeNameField = new JTextField(10); // Input field for the node name
+            nodeNameField = new JTextField(15); // Adjust the size of the input field
+            nodeNameField.setToolTipText("Enter a unique name for the node");
             nodeInputPanel.add(nodeNameField);
-            JButton addNodeButton = new JButton("Add Node"); // Button to add a new node
-            addNodeButton.addActionListener(e -> addNode()); // Add action listener to the button
+            JButton addNodeButton = new JButton("Add Node");
+            addNodeButton.setPreferredSize(new Dimension(100, 30)); // Set button size
+            addNodeButton.setBackground(new Color(50, 150, 250));
+            addNodeButton.setForeground(Color.WHITE);
+            addNodeButton.addActionListener(e -> addNode());
             nodeInputPanel.add(addNodeButton);
-            frame.add(nodeInputPanel, BorderLayout.NORTH); // Add the node input panel to the top of the frame
+            frame.add(nodeInputPanel, BorderLayout.NORTH);
 
             // Panel to input a new connection
-            JPanel connectionInputPanel = new JPanel();
-            nodeSelectorStart = new JComboBox<>(); // Dropdown to select the start node
-            nodeSelectorEnd = new JComboBox<>(); // Dropdown to select the end node
-            costField = new JTextField(5); // Input field for the cost of the connection
-            bandwidthField = new JTextField(5); // Input field for the bandwidth of the connection
+            JPanel connectionInputPanel = new JPanel(new GridLayout(5, 2, 5, 5));
+            connectionInputPanel.setBorder(BorderFactory.createTitledBorder("Add Connection"));
             connectionInputPanel.add(new JLabel("Start Node:"));
+            nodeSelectorStart = new JComboBox<>();
             connectionInputPanel.add(nodeSelectorStart);
             connectionInputPanel.add(new JLabel("End Node:"));
+            nodeSelectorEnd = new JComboBox<>();
             connectionInputPanel.add(nodeSelectorEnd);
             connectionInputPanel.add(new JLabel("Cost:"));
+            costField = new JTextField(5);
             connectionInputPanel.add(costField);
             connectionInputPanel.add(new JLabel("Bandwidth:"));
+            bandwidthField = new JTextField(5);
             connectionInputPanel.add(bandwidthField);
-            JButton addConnectionButton = new JButton("Add Connection"); // Button to add a new connection
-            addConnectionButton.addActionListener(e -> addConnection()); // Add action listener to the button
+            JButton addConnectionButton = new JButton("Add Connection");
+            addConnectionButton.setBackground(new Color(50, 150, 250));
+            addConnectionButton.setForeground(Color.WHITE);
+            addConnectionButton.addActionListener(e -> addConnection());
             connectionInputPanel.add(addConnectionButton);
-            frame.add(connectionInputPanel, BorderLayout.EAST); // Add the connection input panel to the right of the frame
+            frame.add(connectionInputPanel, BorderLayout.EAST);
 
-            // Panel to calculate and display the MST or shortest path
-            JPanel calculationPanel = new JPanel();
-            JButton mstButton = new JButton("Calculate MST"); // Button to calculate MST
+            // Panel to calculate MST or shortest path
+            JPanel calculationPanel = new JPanel(new GridLayout(2, 1, 5, 5));
+            calculationPanel.setBorder(BorderFactory.createTitledBorder("Calculations"));
+            JButton mstButton = new JButton("Calculate MST");
+            mstButton.setBackground(new Color(50, 150, 250));
+            mstButton.setForeground(Color.WHITE);
             mstButton.addActionListener(e -> calculateMST());
-            JButton shortestPathButton = new JButton("Calculate Shortest Path"); // Button to calculate shortest path
-            shortestPathButton.addActionListener(e -> calculateShortestPath());
             calculationPanel.add(mstButton);
+            JButton shortestPathButton = new JButton("Calculate Shortest Path");
+            shortestPathButton.setBackground(new Color(50, 150, 250));
+            shortestPathButton.setForeground(Color.WHITE);
+            shortestPathButton.addActionListener(e -> calculateShortestPath());
             calculationPanel.add(shortestPathButton);
-            frame.add(calculationPanel, BorderLayout.WEST); // Add the calculation panel to the left of the frame
+            frame.add(calculationPanel, BorderLayout.WEST);
 
-            // Add a description area in the bottom-left corner
+            // Description area
             descriptionArea = new JTextArea(10, 20);
             descriptionArea.setEditable(false);
-            descriptionArea.setText("Description:\n");
+            descriptionArea.setBackground(new Color(240, 240, 240));
             JScrollPane scrollPane = new JScrollPane(descriptionArea);
-            frame.add(scrollPane, BorderLayout.SOUTH); // Add the description area to the bottom of the frame
+            frame.add(scrollPane, BorderLayout.SOUTH);
 
-            frame.pack(); // Pack the components to fit within the frame
-            frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE); // Exit when the window is closed
-            frame.setVisible(true); // Make the window visible
+            frame.pack();
+            frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+            frame.setVisible(true);
         }
 
         // Method to add a node to the network

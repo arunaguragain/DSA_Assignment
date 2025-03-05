@@ -1,27 +1,9 @@
-/* Question no: 6b
- * This program is designed to crawl web pages concurrently. The user enters a URL and clicks "Start Crawling".
- * Then the URL is added to a custom queue (URLQueue) and stored in a custom hash table (URLHashTable) to track visited URLs.
- * Three worker threads (CrawlerThread) continuously fetch URLs from the queue and each thread establishes a raw socket connection 
- * to the URL's host and manually sends an HTTP GET request.Then the response is processed, and valid links are extracted using 
- * manual string parsing (basic HTML scanning).After that extracted links are enqueued for further crawling (if not already visited).
- * Results are displayed in a Swing GUI.
- * 
- * Features:
- * - Uses a custom linked-list queue for URL management.
- * - Implements a custom hash table for visited URLs.
- * - Uses raw socket programming to fetch web pages.
- * - Multi-threaded crawling with three concurrent threads.
- * - Extracts new links manually for deeper crawling.
- */
-import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import javax.swing.*;
 
 // Custom linked list queue for managing URLs
 class URLQueue {
@@ -40,11 +22,19 @@ class URLQueue {
         Node newNode = new Node(url);
         if (rear == null) front = rear = newNode;
         else { rear.next = newNode; rear = newNode; }
+        notifyAll(); // Notify waiting threads that a new URL is available
     }
 
     // Method to dequeue URLs from the queue
     public synchronized String dequeue() {
-        if (front == null) return null;
+        while (front == null) {
+            try {
+                wait(); // Wait until a URL is available
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return null;
+            }
+        }
         String url = front.url;
         front = front.next;
         if (front == null) rear = null;
@@ -52,7 +42,7 @@ class URLQueue {
     }
 
     // Check if the queue is empty
-    public boolean isEmpty() { return front == null; }
+    public synchronized boolean isEmpty() { return front == null; }
 }
 
 // Custom hash table for visited URLs
@@ -62,8 +52,8 @@ class URLHashTable {
         Entry next;
         Entry(String url) { this.url = url; this.next = null; }
     }
-    private Entry[] table;
-    private int size = 1000;
+    private final Entry[] table;
+    private final int size = 1000;
 
     // Constructor for URLHashTable
     public URLHashTable() { table = new Entry[size]; }
@@ -92,9 +82,10 @@ class URLHashTable {
 
 // Worker thread for crawling web pages
 class CrawlerTask implements Runnable {
-    private URLQueue queue;
-    private URLHashTable visited;
-    private JTextArea resultArea;
+    private final URLQueue queue;
+    private final URLHashTable visited;
+    private final JTextArea resultArea;
+    private volatile boolean running = true;
 
     // Constructor for CrawlerTask
     public CrawlerTask(URLQueue queue, URLHashTable visited, JTextArea resultArea) {
@@ -105,44 +96,74 @@ class CrawlerTask implements Runnable {
 
     @Override
     public void run() {
-        String url = queue.dequeue();
-        if (url != null) {
-            fetchPage(url);
+        while (running) {
+            String url = queue.dequeue();
+            if (url != null) {
+                fetchPage(url);
+            }
         }
     }
 
     // Method to fetch a page and extract links
     private void fetchPage(String url) {
+        String finalUrl = url; // Create an effectively final variable
         try {
             // Check if the URL is HTTPS, if yes, skip processing
-            if (url.startsWith("https://")) {
-                SwingUtilities.invokeLater(() -> resultArea.append("Skipping HTTPS link: " + url + "\n"));
+            if (finalUrl.startsWith("https://")) {
+                SwingUtilities.invokeLater(() -> resultArea.append("Skipping HTTPS link: " + finalUrl + "\n"));
                 return; // Skip this URL as it uses HTTPS
             }
 
-            // Extract host from URL
-            String host = url.replace("http://", "").split("/")[0];
+            // Extract host, port, and path from URL
+            String host;
+            int port = 80; // Default HTTP port
+            String path = "/";
+            String processedUrl = finalUrl.replace("http://", ""); // Remove "http://"
+            int colonIndex = processedUrl.indexOf(':');
+            int slashIndex = processedUrl.indexOf('/');
+            if (colonIndex != -1) {
+                host = processedUrl.substring(0, colonIndex);
+                String portString = processedUrl.substring(colonIndex + 1, slashIndex != -1 ? slashIndex : processedUrl.length());
+                if (!portString.isEmpty()) { // Check if port is not empty
+                    port = Integer.parseInt(portString);
+                }
+            } else if (slashIndex != -1) {
+                host = processedUrl.substring(0, slashIndex);
+                path = processedUrl.substring(slashIndex);
+            } else {
+                host = processedUrl;
+            }
+
+            // Debug: Print extracted host, port, and path
+            System.out.println("Host: " + host);
+            System.out.println("Port: " + port);
+            System.out.println("Path: " + path);
 
             // Establish socket connection for HTTP protocol
-            Socket socket = new Socket(host, 80);
-            OutputStream os = socket.getOutputStream();
-            InputStream is = socket.getInputStream();
+            try (Socket socket = new Socket(host, port);
+                 OutputStream os = socket.getOutputStream();
+                 InputStream is = socket.getInputStream()) {
+                // Send GET request with headers
+                String request = "GET " + path + " HTTP/1.1\r\n" +
+                                 "Host: " + host + "\r\n" +
+                                 "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)\r\n" +
+                                 "Accept: text/html\r\n" +
+                                 "Connection: close\r\n\r\n";
+                os.write(request.getBytes());
+                os.flush();
 
-            // Send GET request to fetch the page
-            os.write(("GET / HTTP/1.1\r\nHost: " + host + "\r\n\r\n").getBytes());
-            os.flush();
-
-            // Read response from the server
-            byte[] buffer = new byte[4096];
-            int read = is.read(buffer);
-            if (read > 0) {
-                String response = new String(buffer, 0, read);
-                SwingUtilities.invokeLater(() -> resultArea.append("Crawled: " + url + "\n"));
-                extractLinks(response, host); // Extract links from the page content
+                // Read response from the server
+                byte[] buffer = new byte[4096];
+                int read = is.read(buffer);
+                if (read > 0) {
+                    String response = new String(buffer, 0, read);
+                    SwingUtilities.invokeLater(() -> resultArea.append("Crawled: " + finalUrl + "\n"));
+                    extractLinks(response, host); // Extract links from the page content
+                }
             }
-            socket.close();
-        } catch (Exception e) {
-            SwingUtilities.invokeLater(() -> resultArea.append("Failed: " + url + "\n"));
+        } catch (IOException e) {
+            SwingUtilities.invokeLater(() -> resultArea.append("Failed: " + finalUrl + " - " + e.getMessage() + "\n"));
+            e.printStackTrace(); // Print stack trace for debugging
         }
     }
 
@@ -156,32 +177,41 @@ class CrawlerTask implements Runnable {
             String link = content.substring(index, endIndex);
 
             // If the link does not start with "http", make it absolute
-            if (!link.startsWith("http")) {
-                link = "http://" + host + link; // Prepend base URL if it's a relative link
+            String absoluteLink = link; // Create a new variable for the absolute link
+            if (!absoluteLink.startsWith("http")) {
+                absoluteLink = "http://" + host + absoluteLink; // Modify the new variable
             }
 
             // Filter out invalid links like mailto and javascript links
-            if (link.startsWith("javascript:") || link.startsWith("mailto:")) {
+            if (absoluteLink.startsWith("javascript:") || absoluteLink.startsWith("mailto:")) {
                 continue; // Skip these types of links
             }
 
             // If the link has not been visited, add it to the queue
-            if (visited.add(link)) {
-                queue.enqueue(link);
+            String finalLink = absoluteLink; // Create an effectively final variable
+            if (visited.add(finalLink)) {
+                queue.enqueue(finalLink);
+                SwingUtilities.invokeLater(() -> resultArea.append("Extracted link: " + finalLink + "\n"));
             }
         }
+    }
+
+    // Stop the crawler task
+    public void stop() {
+        running = false;
     }
 }
 
 // Swing GUI for web crawler
 public class WebCrawler extends JFrame {
-    private JTextField urlField;
-    private JButton startButton;
-    private JTextArea resultArea;
-    private URLQueue queue;
-    private URLHashTable visited;
+    private final JTextField urlField;
+    private final JButton startButton;
+    private final JTextArea resultArea;
+    private final URLQueue queue;
+    private final URLHashTable visited;
+    private Thread[] threads;
 
-    // Constructor for WebCrawlerSwing
+    // Constructor for WebCrawler
     public WebCrawler() {
         setTitle("Multithreaded Web Crawler");
         setSize(600, 400);
@@ -207,26 +237,32 @@ public class WebCrawler extends JFrame {
         visited = new URLHashTable();
 
         // Start button action listener
-        startButton.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                startCrawling(); // Start crawling when the button is clicked
-            }
-        });
+        startButton.addActionListener(_ -> startCrawling());
     }
 
     // Method to start crawling from the provided URL
     private void startCrawling() {
-        String startUrl = urlField.getText().trim();
-        if (!startUrl.isEmpty() && visited.add(startUrl)) {
-            queue.enqueue(startUrl); // Add the starting URL to the queue
-            resultArea.append("Starting crawl from: " + startUrl + "\n");
+        String input = urlField.getText().trim();
+        if (input.isEmpty()) {
+            return; // Do nothing if the input is empty
+        }
 
-            // Create and start the ExecutorService with 3 threads
-            ExecutorService executor = Executors.newFixedThreadPool(3); // Use ExecutorService for thread pool
-            for (int i = 0; i < 3; i++) {
-                executor.submit(new CrawlerTask(queue, visited, resultArea)); // Submit crawling tasks
+        // Split the input by commas to get individual URLs
+        String[] urls = input.split(",");
+        for (String url : urls) {
+            url = url.trim(); // Remove leading/trailing spaces
+            if (!url.isEmpty() && visited.add(url)) {
+                queue.enqueue(url); // Add the URL to the queue
+                resultArea.append("Starting crawl from: " + url + "\n");
             }
-            executor.shutdown(); // Shutdown the executor after all tasks are submitted
+        }
+
+        // Create and start worker threads for crawling
+        int numThreads = 3; // Number of worker threads
+        threads = new Thread[numThreads];
+        for (int i = 0; i < numThreads; i++) {
+            threads[i] = new Thread(new CrawlerTask(queue, visited, resultArea));
+            threads[i].start();
         }
     }
 
@@ -236,12 +272,4 @@ public class WebCrawler extends JFrame {
     }
 }
 
-
-/* Testing Results
-    Starting crawl from: www.google.com
-    Crawled: www.google.com
-    Starting crawl from: www.google.com/home
-    Crawled: www.google.com/home
-    Starting crawl from: www.google.com/home/aboutus
-    Crawled: www.google.com/home/aboutus 
- */
+/* Testing */
